@@ -6,13 +6,14 @@ import time
 from .models import STMEntry
 
 class ShortTermMemory:
-    def __init__(self, eviction_interval=60):
+    def __init__(self, eviction_interval=60, start_eviction_thread=True):
         self.store: Dict[str, STMEntry] = {}
         self._lock = threading.Lock()
         self._eviction_interval = eviction_interval
         self._stop_event = threading.Event()
-        self._eviction_thread = threading.Thread(target=self._evict_expired_entries, daemon=True)
-        self._eviction_thread.start()
+        if start_eviction_thread:
+            self._eviction_thread = threading.Thread(target=self._evict_expired_entries, daemon=True)
+            self._eviction_thread.start()
 
     def set(self, key, value, ttl_minutes=10, source="system", priority=3):
         now = datetime.now(UTC)
