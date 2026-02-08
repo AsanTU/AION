@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from typing import Dict
 import threading
 import time
@@ -15,7 +15,7 @@ class ShortTermMemory:
         self._eviction_thread.start()
 
     def set(self, key, value, ttl_minutes=10, source="system", priority=3):
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         entry = STMEntry(
             key=key,
             value=value,
@@ -32,15 +32,14 @@ class ShortTermMemory:
             entry = self.store.get(key)
             if not entry:
                 return None
-        
-            if datetime.utcnow() > entry.expires_at:
+            if datetime.now(UTC) > entry.expires_at:
                 del self.store[key]
                 return None
 
             return entry.value
         
     def cleanup(self):
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         with self._lock:
             expired_keys = [k for k, v in self.store.items() if now > v.expires_at]
             for k in expired_keys:
