@@ -1,5 +1,5 @@
 import unittest
-from ltsm.ltsm import LTSMManager
+from memory.ltsm.ltsm import LTSMManager
 
 class TestLTSMManager(unittest.TestCase):
     def text_add_and_query(self):

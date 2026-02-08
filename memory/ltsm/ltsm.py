@@ -1,5 +1,5 @@
 import time
-from ..schema import LTSMEntry
+from memory.schema import LTSMEntry
 from ..vector_db import VectorDB
 
 class LTSMManager:
