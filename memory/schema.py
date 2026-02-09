@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
-
+from datetime import datetime
 @dataclass
 class LTSMEntry:
     id: str
@@ -9,3 +9,12 @@ class LTSMEntry:
     created_at: float
     last_accessed: float
     decay_rate: float
+
+@dataclass
+class EpisodicMemoryEntry:
+    situation: str
+    decision: str
+    outcome: str
+    confidence: float
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    tags: List[str] = field(default_factory=list)
