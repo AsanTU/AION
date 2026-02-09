@@ -18,3 +18,15 @@ class EpisodicMemoryEntry:
     confidence: float
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     tags: List[str] = field(default_factory=list)
+
+@dataclass
+class SkillHistoryEntry:
+    timestamp: str
+    value: float
+
+@dataclass
+class SkillMemoryEntry:
+    skill_name: str
+    current_value: float
+    history: List[SkillHistoryEntry] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
