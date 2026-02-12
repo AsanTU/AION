@@ -1,5 +1,5 @@
 import time
-from memory.schema import LTSMEntry
+from memory.schema import MemoryEntry
 from ..vector_db import VectorDB
 
 class LTSMManager:
@@ -8,13 +8,21 @@ class LTSMManager:
 
     def add_entry(self, id, vector, metadata, decay_rate=0.001):
         now = time.time()
-        entry = LTSMEntry(
+        metadata = metadata or {}
+        entry = MemoryEntry(
             id=id,
-            vector=vector,
-            metadata=metadata,
+            content=metadata.get("content", ""),
+            embedding=vector,
+            type=metadata.get("type", "ltsm"),
+            tags=metadata.get("tags", []),
+            importance=metadata.get("importance", 0.0),
+            confidence=metadata.get("confidence", 0.0),
             created_at=now,
             last_accessed=now,
-            decay_rate=decay_rate
+            decay_rate=decay_rate,
+            source=metadata.get("source", "ltsm"),
+            linked_memories=metadata.get("lined_memories", []),
+            metadata=metadata
         )
         self.db.add(entry)
 
@@ -27,7 +35,7 @@ class LTSMManager:
     
     def decay_entries(self):
         now = time.time()
-        for entry in self.db.entries.values():
+        for entry in list(self.db.entries.values()):
             age = now - entry.last_accessed
-            if age > (1 / entry.decay_rate):
+            if entry.decay_rate > 0 and age > (1 / entry.decay_rate):
                 del self.db.entries[entry.id]
