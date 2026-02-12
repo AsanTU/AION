@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict
 import uuid
 
-from memory.schema import MemoryEntry
+from memory.core.schema import MemoryEntry
 
 
 class SkillMemory:

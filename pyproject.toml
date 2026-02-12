@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aion"
+version = "0.0.0"
+description = "AION memory package"
+authors = [ { name = "You" } ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["memory*"]

@@ -1,6 +1,6 @@
 import time
-from memory.schema import MemoryEntry
-from ..vector_db import VectorDB
+from memory.core.schema import MemoryEntry
+from memory.backends.vector_db import VectorDB
 
 class LTSMManager:
     def __init__(self, dim):

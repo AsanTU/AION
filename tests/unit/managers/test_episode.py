@@ -1,6 +1,6 @@
 import unittest
 
-from memory.episodic import EpisodicMemory
+from memory.managers.episodic import EpisodicMemory
 
 class TestEpisodicMemory(unittest.TestCase):
     def test_add_and_retrieve(self):

@@ -3,7 +3,7 @@ import time
 import threading
 from datetime import datetime, timedelta
 
-from stm.stm import ShortTermMemory
+from memory.managers.stm import ShortTermMemory
 
 class NoEvictionSTM(ShortTermMemory):
     def __init__(self):

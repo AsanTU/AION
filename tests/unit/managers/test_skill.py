@@ -1,6 +1,6 @@
 import unittest
 
-from memory.skill import SkillMemory
+from memory.managers.skill import SkillMemory
 
 class TestSkillMemory(unittest.TestCase):
     def test_add_and_update_skill(self):

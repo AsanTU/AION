@@ -3,7 +3,7 @@ from typing import Dict
 import threading
 import time
 
-from memory.schema import MemoryEntry
+from memory.core.schema import MemoryEntry
 
 class ShortTermMemory:
     def __init__(self, eviction_interval=60, start_eviction_thread=True):

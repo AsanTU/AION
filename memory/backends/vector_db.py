@@ -1,7 +1,7 @@
 import faiss
 import numpy as np
 
-from memory.schema import MemoryEntry
+from memory.core.schema import MemoryEntry
 
 class VectorDB:
     def __init__(self, dim):

@@ -2,7 +2,7 @@ from typing import List
 from datetime import datetime
 import uuid
 
-from memory.schema import MemoryEntry
+from memory.core.schema import MemoryEntry
 
 class EpisodicMemory:
     def __init__(self):
@@ -27,7 +27,7 @@ class EpisodicMemory:
         )
         entry.decision = decisioin
         entry.outcome = outcome
-        
+
         self.entries.append(entry)
 
     def get_all(self):
