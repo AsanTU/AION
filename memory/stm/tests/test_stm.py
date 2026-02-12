@@ -38,7 +38,7 @@ class TestShortTermMemory(unittest.TestCase):
         stm.set("p", "v", ttl_minutes=1, source="test", priority=10)
         entry = stm.store["p"]
         self.assertEqual(entry.source, "test")
-        self.assertEqual(entry.priority, 10)
+        self.assertEqual(entry.metadata["priority"], 10)
         stm.stop_eviction()
 
     def test_thread_safety(self):
