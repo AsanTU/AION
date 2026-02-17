@@ -6,10 +6,15 @@ from typing import Union, Dict
 def _to_timestamp_secs(ts: Union[str, float, int, None]) -> float:
     if ts is None:
         return datetime.now(timezone.utc).timestamp()
-    if isinstance(ts, [float, int]):
+    if isinstance(ts, (float, int)):
         return float(ts)
+    if isinstance(ts, datetime):
+        dt = ts
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
     try:
-        dt = datetime.fromisoformat(ts)
+        dt = datetime.fromisoformat(str(ts))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.timestamp()
