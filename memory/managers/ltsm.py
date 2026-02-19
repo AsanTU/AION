@@ -2,24 +2,25 @@ import time
 from memory.core.schema import MemoryEntry
 from memory.backends.vector_db import VectorDB
 from memory.utils.importance import compute_importance, effective_score, reinforce_importance
+from memory.api import write_memory
 
 class LTSMManager:
     def __init__(self, dim):
         self.db = VectorDB(dim)
+        self.dim = dim
 
     def add_entry(self, id, vector, metadata, decay_rate=0.001):
         now = time.time()
         metadata = metadata or {}
-        importance_score = metadata.get(
-            "importance",
-            compute_importance(
-                metadata.get("signals", {}).get("emotion", 0.0),
-                metadata.get("signals", {}).get("outcome", 0.0),
-                metadata.get("signals", {}).get("reuse", 0.0),
+        if metadata.get("signals"):
+            importance_score = compute_importance(
+                metadata["signals"].get("emotion", 0.0),
+                metadata["signals"].get("outcome", 0.0),
+                metadata["signals"].get("reuse", 0.0),
             )
-            if metadata.get("signals")
-            else 0.0
-        )
+        else:
+            importance_score = float(metadata.get("importance", 0.0))
+
         metadata["importance"] = importance_score
 
         entry = MemoryEntry(
@@ -38,6 +39,11 @@ class LTSMManager:
             metadata=metadata
         )
         self.db.add(entry)
+
+    def write(self, event, id: str | None = None, signals: dict | None = None, decay_rate: float | None = None):
+        decay_rate = decay_rate if decay_rate is not None else 0.001
+        from memory.api import write_memory
+        return write_memory(event, self, dim=self.dim, id=id, signals=signals, decay_rate=decay_rate)
 
     def query(self, vector, top_k=5):
         results = self.db.query(vector, top_k)

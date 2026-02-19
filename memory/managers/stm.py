@@ -5,6 +5,7 @@ import time
 from memory.utils.importance import compute_importance, effective_score, reinforce_importance
 
 from memory.core.schema import MemoryEntry
+from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
 
 class ShortTermMemory:
     def __init__(self, eviction_interval=60, start_eviction_thread=True):
@@ -16,30 +17,32 @@ class ShortTermMemory:
             self._eviction_thread = threading.Thread(target=self._evict_expired_entries, daemon=True)
             self._eviction_thread.start()
 
-    def set(self, key, content, ttl_minutes=10, source="system", priority=3, importance=0.5, confidence=0.5, tags=None, signals=None):
+    def set(self, key, content, ttl_minutes=10, source="system", priority=3, importance=0.5, confidence=0.5, tags=None, signals=None, dim: int = 8):
         now = datetime.now(UTC)
-        if signals:
-            importance_score = compute_importance(
-                signals.get("emotion", 0.0),
-                signals.get("outcome", 0.0),
-                signals.get("reuse", 0.0)
-            )
-        else:
-            importance_score = importance
+
+        summary = summarize({"text": content}) if content else summarize({})
+        pipeliine_tags = classify_tags({"text": content, "tags": tags or []})
+        importance_score = (
+            estimate_importance_from_signals(signals)
+            if signals is not None
+            else importance
+        )
+        embedding = _deterministic_embed(summary, dim=dim)
+
         entry = MemoryEntry(
             id=key,
-            content=content,
-            embedding=[], 
+            content=summary,
+            embedding=embedding, 
             type="semantic",
-            tags=tags or [],
-            importance=importance,
+            tags=pipeliine_tags,
+            importance=importance_score,
             confidence=confidence,
             created_at=now.isoformat(),
             last_accessed=now.isoformat(),
             decay_rate=0.01,
             source=source,
             linked_memories=[],
-            metadata={"priority": priority, "expires_at": (now + timedelta(minutes=ttl_minutes)).isoformat(), "importance": importance_score, "decay_rate": 0.01}
+            metadata={"priority": priority, "expires_at": (now + timedelta(minutes=ttl_minutes)).isoformat(), "importance": importance_score, "decay_rate": 0.01, "signals": signals or {},}
         )
         with self._lock:
             self.store[key] = entry

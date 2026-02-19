@@ -3,21 +3,28 @@ from datetime import datetime
 import uuid
 
 from memory.core.schema import MemoryEntry
+from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
 
 class EpisodicMemory:
     def __init__(self):
         self.entries: List[MemoryEntry] = []
     
-    def add_entry(self, situation, decisioin, outcome, confidence, tags=None, timestamp=None):
+    def add_entry(self, situation, decisioin, outcome, confidence, tags=None, timestamp=None, dim: int = 8, signals: dict | None = None):
         ts = timestamp or datetime.now().isoformat()
+        summary = summarize({"text": situation})
+        pipeline_tags = list(dict.fromkeys((tags or []) + classify_tags({"text": situation})))
+        importance = estimate_importance_from_signals(signals)
+
         entry_id = f"episodic-{uuid.uuid4().hex}"
+        embedding = _deterministic_embed(summary, dim=dim)
+
         entry = MemoryEntry(
             id=entry_id,
             content=situation,
-            embedding=[],
+            embedding=embedding,
             type="episodic",
-            tags=tags or [],
-            importance=0.0,
+            tags=pipeline_tags,
+            importance=importance,
             confidence=confidence,
             created_at=ts,
             decay_rate=0.0,
