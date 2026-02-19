@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import numpy as np
 
-from memory.utils.importance import compute_importance
+from memory.utils.importance import compute_importance, effective_score
 
 if TYPE_CHECKING:
     from memory.managers.ltsm import LTSMManager
@@ -77,3 +77,49 @@ def write_memory(
 
     ltsm.add_entry(id, embedding, metadata, decay_rate=decay_rate)
     return id
+
+def read_memory(
+    query: Any,
+    ltsm: "LTSMManager",
+    top_k: int = 5,
+    type_filter: Optional[List[str]] = None,
+    tag_filter: Optional[List[str]] = None,
+) -> List[Any]:
+    
+    if isinstance(query, str):
+        qvec = _deterministic_embed(query, dim=getattr(ltsm, "dim", 8))
+    else:
+        qvec = query
+
+    vec = ltsm.db._prepare_vector(qvec)
+    D, I = ltsm.db.index.search(vec, top_k)
+    keys = list(ltsm.db.entries.keys())
+    now = time.time()
+
+    candidates = []
+    for dist, idx in zip(D[0], I[0]):
+        if idx == -1:
+            continue
+        key = keys[idx]
+        entry = ltsm.db.entries.get(key)
+        if entry is None:
+            continue
+
+        if type_filter and entry.type not in type_filter:
+            continue
+        if tag_filter and not any(t in entry.tags for t in tag_filter):
+            continue
+
+        similarity = 1.0 / (1.0 * float(dist))
+        imp_decay = effective_score(entry.importance, entry.decay_rate, timestamp=entry.last_accessed, now_ts=now)
+        final_score = similarity * float(imp_decay)
+
+        candidates.append((final_score, entry))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    results = [e for _, e in candidates[:top_k]]
+
+    for e in results:
+        e.last_accessed = now
+
+    return results

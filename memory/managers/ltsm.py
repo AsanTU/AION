@@ -58,3 +58,7 @@ class LTSMManager:
             age = now - entry.last_accessed
             if entry.decay_rate > 0 and age > (1 / entry.decay_rate):
                 del self.db.entries[entry.id]
+
+    def read(self, query, top_k: int = 5, type_filter: list | None = None, tag_filter: list | None = None):
+        from memory.api import read_memory
+        return read_memory(query, self, top_k=top_k, type_filter=type_filter, tag_filter=tag_filter)

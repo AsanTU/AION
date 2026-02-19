@@ -100,3 +100,12 @@ class ShortTermMemory:
     def stop_eviction(self):
         self._stop_event.set()
         self._eviction_thread.join()
+
+    def set_ltsm(self, ltsm):
+        self.ltsm = ltsm
+
+    def semantic_query(self, query, top_k: int = 5, type_filter = None, tag_filter = None, ltsm = None):
+        ltsm = ltsm or getattr(self, "ltsm", None)
+        if ltsm is None:
+            return []
+        return ltsm.read(query, top_k=top_k, type_filter=type_filter, tag_filter=tag_filter)
