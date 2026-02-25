@@ -7,6 +7,53 @@ import numpy as np
 
 from memory.utils.importance import compute_importance, effective_score
 
+from typing import List, Optional, Dict, Any
+import time 
+from math import exp
+
+class MemoryAPI:
+    def __init__(self, ltsm):
+        self.ltsm = ltsm
+
+    def query(self, query: str, tags: Optional[List[str]] = None, time_window: Optional[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
+        cutoff = None
+        if time_window:
+            units = {"month": 30*24*3600, "moths": 30*24*3600, "day": 24*3600, "days": 24*3600}
+            parts = time_window.split()
+            if len(parts) == 2 and parts[1] in units:
+                cutoff = time.time() - int(parts[0]) * units[parts[1]]
+
+        
+        results = self.ltsm.read(query, top_k=top_k, tag_filter=tags)
+        explained = []
+        scores = []
+        for entry in results:
+            if cutoff and entry.created_at < cutoff:
+                continue
+            similarity = 1.0
+            importance = entry.importance
+            decay = entry.decay_rate
+            last_accessed = entry.last_accessed
+            now = time.time()
+            dt = max(0.0, now - last_accessed)
+            decay_factor = 1.0 if decay <= 0 else float(exp(-decay * dt))
+            final_score = similarity * importance * decay_factor
+            scores.append(final_score)
+            explained.append({
+                "content": entry.content,
+                "why_selected": f"Similarity={similarity:.3f}, Importance={importance:.3f}, Decay={decay_factor:.3f}",
+                "confidence_score": final_score,
+                "metadata": {
+                    "tags": entry.tags,
+                    "created_at": entry.created_at,
+                    "last_accessed": entry.last_accessed,
+                }
+            })
+        max_score = max(scores) if scores else 1.0
+        for i, e in enumerate(explained):
+            e["confidence_score"] = e["confidence_score"] / max_score if max_score > 0 else 0.0
+        return explained
+
 if TYPE_CHECKING:
     from memory.managers.ltsm import LTSMManager
 
