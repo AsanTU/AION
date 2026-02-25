@@ -87,6 +87,45 @@ class MemoryAPI:
     def influences(self, decision_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
         results = self.query(query=decision_id, top_k=top_k)
         return results
+    
+    def get_memory_history(self, memory_id: str) -> Dict[str, Any]:
+        entry = self.ltsm.db.entries.get(memory_id)
+        if not entry:
+            return {}
+        history = {
+            "content": entry.content,
+            "created_at": entry.created_at,
+            "last_accessed": entry.last_accessed,
+            "importance": entry.importance,
+            "decay_rate": entry.decay_rate,
+            "tags": entry.tags,
+            "reinforcement_events": getattr(entry, "reinforcement_events", []),
+            "decay_curve": self._compute_decay_curve(entry),        
+        }
+        return history
+    
+    def _compute_decay_curve(self, entry, points=20):
+        now = time.time()
+        curve = []
+        for i in range(points):
+            t = entry.created_at + 1 * (now - entry.created_at) / points
+            dt = (now - t) / 60.0
+            score = entry.importance * exp(-entry.decay_rate * dt)
+            curve.append({"timestamp": t, "score": score})
+        return curve
+
+    def why_chain(self, memory_id: str, depth: int = 2) -> Dict[str, Any]:
+        entry = self.ltsm.db.entries.get(memory_id)
+        if not entry or depth <= 0:
+            return {}
+        influences = getattr(entry, "influences", [])
+        return {
+            "memory": entry.content,
+            "influences": [
+                self.why_chain(inf_id, depth - 1) for inf_id in influences
+            ]
+        }
+    
 
 if TYPE_CHECKING:
     from memory.managers.ltsm import LTSMManager
