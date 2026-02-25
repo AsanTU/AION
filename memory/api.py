@@ -93,14 +93,25 @@ def read_memory(
 
     vec = ltsm.db._prepare_vector(qvec)
     D, I = ltsm.db.index.search(vec, top_k)
-    keys = list(ltsm.db.entries.keys())
     now = time.time()
+
+    id_to_key = getattr(ltsm.db, "_id_to_key", None)
+    keys_fallback = list(ltsm.db.entries.keys()) if id_to_key is None else None
 
     candidates = []
     for dist, idx in zip(D[0], I[0]):
-        if idx == -1:
+        idx_int = int(idx)
+        if idx_int == -1:
             continue
-        key = keys[idx]
+
+        if id_to_key is not None:
+            key = id_to_key.get(idx_int)
+        else:
+            key = keys_fallback[idx_int] if 0 <= idx_int < len(keys_fallback) else None
+
+        if key is None:
+            continue
+
         entry = ltsm.db.entries.get(key)
         if entry is None:
             continue
@@ -110,7 +121,11 @@ def read_memory(
         if tag_filter and not any(t in entry.tags for t in tag_filter):
             continue
 
-        similarity = 1.0 / (1.0 * float(dist))
+        try:
+            similarity = 1.0 / (1.0 * float(dist))
+        except Exception:
+            similarity = 0.0
+            
         imp_decay = effective_score(entry.importance, entry.decay_rate, timestamp=entry.last_accessed, now_ts=now)
         final_score = similarity * float(imp_decay)
 

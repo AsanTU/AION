@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from math import isclose
 from memory.utils.importance import compute_importance, effective_score, reinforce_importance
+import math
 
 class TestImportance(unittest.TestCase):
     def test_compute_importance_basic(self):
@@ -14,10 +15,11 @@ class TestImportance(unittest.TestCase):
     
     def test_effective_score_decay(self):
         importance = 1.0
-        decay_rate = 0.1
+        decay_rate = 0.1  
         then = datetime.now(timezone.utc) - timedelta(minutes=10)
         eff = effective_score(importance, decay_rate, timestamp=then.isoformat())
-        expected = 1.0 * (2.718281828459045 ** (-0.1 * 10))
+        dt_minutes = 10
+        expected = 1.0 * math.exp(-0.1 * dt_minutes)
         self.assertTrue(isclose(eff, expected, rel_tol=1e-6))
     
     def test_reinforce_importance_increases(self):

@@ -26,7 +26,7 @@ class _InMemoryIndex:
         start = len(self._vecs)
         for i in range(vec.shape[0]):
             self._vecs.append(vec[i].astype("float32").copy())
-            self._ids.append(start + 1)
+            self._ids.append(start + i)
     
     def remove_ids(self, ids: np.ndarray):
         remove_set = set(int(x) for x in ids)
@@ -37,12 +37,12 @@ class _InMemoryIndex:
     def search(self, qvec: np.ndarray, top_k: int):
         if len(self._vecs) == 0:
             D = np.full((1, top_k), np.inf, dtype="float32")
-            I = np.full((1, top_k), -1, dtype="int64")
+            I = np.full((1, top_k), -1, dtype="int64") 
             return D, I
         qs = qvec.astype("float32").reshape(-1)
         mat = np.vstack(self._vecs)
         diffs = mat - qs
-        dists = np.sim(diffs * diffs, axis=1)
+        dists = np.sum(diffs * diffs, axis=1)
         order = np.argsort(dists)[:top_k]
         D = np.full((1, top_k), np.inf, dtype="float32")
         I = np.full((1, top_k), -1, dtype="int64")
