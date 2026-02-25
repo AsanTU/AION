@@ -73,6 +73,7 @@ class MemoryAPI:
         filtered.sort(key=lambda e: e.created_at)
         return [
             {
+                "id": e.id,
                 "content": e.content,
                 "tags": e.tags,
                 "created_at": e.created_at,
