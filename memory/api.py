@@ -53,6 +53,40 @@ class MemoryAPI:
         for i, e in enumerate(explained):
             e["confidence_score"] = e["confidence_score"] / max_score if max_score > 0 else 0.0
         return explained
+    
+    def timeline(self, tags: Optional[List[str]] = None, time_window: Optional[str] = None) -> List[Dict[str, Any]]:
+        cutoff = None
+        if time_window:
+            units = {"month": 30*24*3600, "months": 30*24*3600, "day": 24*3600, "days": 24*3600}
+            parts = time_window.split()
+            if len(parts) == 2 and parts[1] in units:
+                cutoff = time.time() - int(parts[0]) * units[parts[1]]
+        
+        all_entries = list(self.ltsm.db.entries.values())
+        filtered = []
+        for entry in all_entries:
+            if tags and not any(t in entry.tags for t in tags):
+                continue
+            if cutoff and entry.created_at < cutoff:
+                continue
+            filtered.append(entry)
+        filtered.sort(key=lambda e: e.created_at)
+        return [
+            {
+                "content": e.content,
+                "tags": e.tags,
+                "created_at": e.created_at,
+                "importance": e.importance,
+                "decay_rate": e.decay_rate,
+                "last_accessed": e.last_accessed,
+            }
+            for e in filtered
+        ]
+    
+
+    def influences(self, decision_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        results = self.query(query=decision_id, top_k=top_k)
+        return results
 
 if TYPE_CHECKING:
     from memory.managers.ltsm import LTSMManager
