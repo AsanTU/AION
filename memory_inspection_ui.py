@@ -50,6 +50,20 @@ st.write(f"**Created at:** {time.ctime(memory['created_at'])}")
 st.write(f"**Importance:** {memory['importance']}")
 st.write(f"**Decay rate:** {memory['decay_rate']}")
 
+if st.button("Boost Memory"):
+    memory_obj = api.ltsm.db.entries[selected_id]
+    memory_obj.importance = min(memory_obj.importance + 0.1, 1.0)
+    memory_obj.reinforcement_events.append({
+        "tiimestamp": time.time(),
+        "delta": 0.1
+    })
+    st.success("Memory boosted!")
+
+if st.button("Evict Memory"):
+    del api.ltsm.db.entries[selected_id]
+    st.success("Memory evicted!")
+    st.rerun()
+
 # Show history and decay curve
 history = api.get_memory_history(memory_id=selected_id)
 if history:
@@ -66,7 +80,12 @@ if history:
 
     st.subheader("Reinforcement Events")
     for evt in history["reinforcement_events"]:
-        st.write(f"At {time.ctime(evt['timestamp'])}: Δimportance {evt['delta']}")
+        ts = evt.get("timestamp")
+        delta = evt.get("delta", "?")
+        if ts is not None:
+            st.write(f"At {time.ctime(evt['timestamp'])}: Δimportance {evt['delta']}")
+        else:
+            st.write(f"Δimportance {delta} (timestamp missing)")
 
 # Show "why" chain
 st.subheader("Why Chain (Influence Tree)")
