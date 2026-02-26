@@ -4,11 +4,15 @@ import uuid
 
 from memory.core.schema import MemoryEntry
 from memory.api import _deterministic_embed
-
+from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
 
 class SkillMemory:
     def __init__(self):
-        self.skills: Dict[str, MemoryEntry] = {}
+        self.skills: Dict[str, MemoryEntry] = {
+            entry.content: entry
+            for entry in load_memories()
+            if getattr(entry, "type", None) == "skill"
+        }
 
     def add_or_update_skill(self, skill_name, value, tags=None, dim: int = 8):
         now = datetime.now().isoformat()
@@ -20,6 +24,7 @@ class SkillMemory:
             if tags:
                 entry.tags = list(dict.fromkeys(entry.tags + tags))
                 entry.metadata["tags"] = entry.tags
+            add_memory(entry)
 
         else:
             entry_id = f"skill-{uuid.uuid4().hex}"
@@ -50,6 +55,13 @@ class SkillMemory:
             entry.current_value = value
             entry.history = history
             self.skills[skill_name] = entry
+            add_memory(entry)
+        
+    def delete_skill(self, skill_name):
+        entry = self.skills.get(skill_name)
+        if entry:
+            delete_memory(entry.id)
+            del self.skills[skill_name]
 
     def get_skill(self, skill_name):
         return self.skills.get(skill_name)

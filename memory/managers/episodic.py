@@ -4,10 +4,11 @@ import uuid
 
 from memory.core.schema import MemoryEntry
 from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
+from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
 
 class EpisodicMemory:
     def __init__(self):
-        self.entries: List[MemoryEntry] = []
+        self.entries: List[MemoryEntry] = [e for e in load_memories() if getattr(e, "type", None) == "episodic"]
     
     def add_entry(self, situation, decisioin, outcome, confidence, tags=None, timestamp=None, dim: int = 8, signals: dict | None = None):
         ts = timestamp or datetime.now().isoformat()
@@ -36,6 +37,11 @@ class EpisodicMemory:
         entry.outcome = outcome
 
         self.entries.append(entry)
+        add_memory(entry)
+    
+    def delete_entry(self, entry_id):
+        self.entries = [e for e in self.entries if e.id != entry_id]
+        delete_memory(entry_id)
 
     def get_all(self):
         return self.entries

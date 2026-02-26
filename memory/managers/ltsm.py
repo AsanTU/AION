@@ -3,11 +3,13 @@ from memory.core.schema import MemoryEntry
 from memory.backends.vector_db import VectorDB
 from memory.utils.importance import compute_importance, effective_score, reinforce_importance
 from memory.api import write_memory
+from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
 
 class LTSMManager:
     def __init__(self, dim):
         self.db = VectorDB(dim)
         self.dim = dim
+        self.entries = {entry.id: entry for entry in load_memories()}
 
     def add_entry(self, id, vector, metadata, decay_rate=0.001):
         now = time.time()
@@ -39,6 +41,8 @@ class LTSMManager:
             metadata=metadata
         )
         self.db.add(entry)
+        self.entries[entry.id] = entry
+        add_memory(entry)
 
     def write(self, event, id: str | None = None, signals: dict | None = None, decay_rate: float | None = None):
         decay_rate = decay_rate if decay_rate is not None else 0.001
@@ -62,3 +66,8 @@ class LTSMManager:
     def read(self, query, top_k: int = 5, type_filter: list | None = None, tag_filter: list | None = None):
         from memory.api import read_memory
         return read_memory(query, self, top_k=top_k, type_filter=type_filter, tag_filter=tag_filter)
+    
+    def delete_entry(self, memory_id):
+        if memory_id in self.entries:
+            del self.entries[memory_id]
+            delete_memory(memory_id)

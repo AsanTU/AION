@@ -6,10 +6,15 @@ from memory.utils.importance import compute_importance, effective_score, reinfor
 
 from memory.core.schema import MemoryEntry
 from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
+from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
 
 class ShortTermMemory:
     def __init__(self, eviction_interval=60, start_eviction_thread=True):
-        self.store: Dict[str, MemoryEntry] = {}
+        self.store: Dict[str, MemoryEntry] = {
+            entry.id: entry
+            for entry in load_memories()
+            if getattr(entry, "type", None) == "semantic"
+        }
         self._lock = threading.Lock()
         self._eviction_interval = eviction_interval
         self._stop_event = threading.Event()
@@ -46,6 +51,7 @@ class ShortTermMemory:
         )
         with self._lock:
             self.store[key] = entry
+        add_memory(entry)
     
     def get(self, key):
         with self._lock:
@@ -74,6 +80,7 @@ class ShortTermMemory:
             new_imp = reinforce_importance(current, reinforcement, boost=boost)
             entry.metadata["importance"] = new_imp
             entry.last_accessed = now
+        add_memory(entry)
         
     def cleanup(self):
         now = datetime.now(UTC)
@@ -91,6 +98,7 @@ class ShortTermMemory:
                     expired_keys.append(k)
             for k in expired_keys:
                 del self.store[k]
+                delete_memory(k)
     
     def _evict_expired_entries(self):
         while not self._stop_event.is_set():
