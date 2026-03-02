@@ -127,6 +127,15 @@ class MemoryAPI:
             ]
         }
     
+    def delete_memories(self, tag: str = None, content_match: str = None):
+        to_delete = []
+        for mem_id, entry in list(self.ltsm.db.entries.items()):
+            if (tag and tag in entry.tags) or (content_match and content_match in entry.content):
+                to_delete.append(mem_id)
+        for mem_id in to_delete:
+            del self.ltsm.db.entries[mem_id]
+        return len(to_delete)
+    
 
 if TYPE_CHECKING:
     from memory.managers.ltsm import LTSMManager

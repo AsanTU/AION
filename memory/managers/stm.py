@@ -47,7 +47,8 @@ class ShortTermMemory:
             decay_rate=0.01,
             source=source,
             linked_memories=[],
-            metadata={"priority": priority, "expires_at": (now + timedelta(minutes=ttl_minutes)).isoformat(), "importance": importance_score, "decay_rate": 0.01, "signals": signals or {},}
+            metadata={"priority": priority, "expires_at": (now + timedelta(minutes=ttl_minutes)).isoformat(), "importance": importance_score, "decay_rate": 0.01, "signals": signals or {},},
+            public_memories = [m for m in self.ltsm.db.entries.values() if m.visibility == "public"]
         )
         with self._lock:
             self.store[key] = entry

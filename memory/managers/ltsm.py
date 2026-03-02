@@ -38,7 +38,8 @@ class LTSMManager:
             decay_rate=decay_rate,
             source=metadata.get("source", "ltsm"),
             linked_memories=metadata.get("lined_memories", []),
-            metadata=metadata
+            metadata=metadata,
+            public_memories = [m for m in self.ltsm.db.entries.values() if m.visibility == "public"]
         )
         self.db.add(entry)
         self.entries[entry.id] = entry

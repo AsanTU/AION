@@ -33,8 +33,6 @@ api = MemoryAPI(DummyLTSM())
 
 st.title("Memory Inspection UI")
 
-# ...existing code...
-
 # List all memories
 memories = api.timeline()
 memory_options = {f"{m['content']} ({int(m['created_at'])})": m['id'] for m in memories}
@@ -64,6 +62,13 @@ if st.button("Evict Memory"):
     st.success("Memory evicted!")
     st.rerun()
 
+st.subheader("Privacy & Safety")
+forget_text = st.text_input("Forget everything related to...")
+if st.button("Forget"):
+    deleted = api.delete_memories(content_match=forget_text)
+    st.success(f"Deleted {deleted} memories related to '{forget_text}")
+    st.rerun()
+    
 # Show history and decay curve
 history = api.get_memory_history(memory_id=selected_id)
 if history:

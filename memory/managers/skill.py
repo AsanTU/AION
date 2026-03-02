@@ -50,6 +50,7 @@ class SkillMemory:
                 source="skill",
                 linked_memories=[],
                 metadata=metadata,
+                public_memories = [m for m in self.ltsm.db.entries.values() if m.visibility == "public"]
             )
             entry.skill_name = skill_name
             entry.current_value = value

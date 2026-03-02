@@ -31,7 +31,8 @@ class EpisodicMemory:
             decay_rate=0.0,
             source="episodic",
             linked_memories=[],
-            metadata={"decision": decisioin, "outcome": outcome, "timestamp": ts}
+            metadata={"decision": decisioin, "outcome": outcome, "timestamp": ts},
+            public_memories = [m for m in self.ltsm.db.entries.values() if m.visibility == "public"]
         )
         entry.decision = decisioin
         entry.outcome = outcome
