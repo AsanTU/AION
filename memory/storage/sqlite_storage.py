@@ -1,16 +1,23 @@
 import sqlite3
 from memory.core.schema import MemoryEntry
 from cryptography.fernet import Fernet
+import json
+
+def get_cipher():
+    with open("fernet.key", "rb") as f:
+        key = f.read()
+    return Fernet(key)
 
 with open("memory.key", "rb") as key_file:
     key = key_file.read()
-cipher = Fernet(key)
+cipher = get_cipher()
 
 conn = sqlite3.connect('memory.db')
 
 conn.execute('''
 CREATE TABLE IF NOT EXISTS memories (
     id TEXT PRIMARY KEY,
+    encrypted_entry BLOB,
     content TEXT,
     importance REAL,
     decay_rate REAL,
@@ -21,30 +28,25 @@ CREATE TABLE IF NOT EXISTS memories (
 ''')
 conn.commit()
 
-def add_memory(entry):
-    encrypted_content = cipher.encrypt(entry.content.encode("utf-8"))
+def add_memory(entry: MemoryEntry):
+    cipher = get_cipher()
+    data = json.dumps(entry.__dict__).encode("utf-8")
+    encrypted = cipher.encrypt(data)
     encrypted_tags = cipher.encrypt(','.join(entry.tags).encode("utf-8"))
     conn.execute(
-        'INSERT INTO memories (id, content, decay_rate, tags, created_at, last_accessed) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        (entry.id, encrypted_content, entry.importance, entry.decay_rate, encrypted_tags, entry.created_at, entry.last_accessed)
+        'INSERT INTO memories (id, encrypted_entry, decay_rate, tags, created_at, last_accessed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (entry.id, encrypted, entry.importance, entry.decay_rate, encrypted_tags, entry.created_at, entry.last_accessed)
     )
     conn.commit()   
 
 def load_memories():
-    cursor = conn.execute('SELECT id, content, importance, decay_rate, tags, created_at, last_accessed FROM memories')
+    cipher = get_cipher()
+    cursor = conn.execute('SELECT id, encrypted_entry, importance, decay_rate, tags, created_at, last_accessed FROM memories')
     memories = []
     for row in cursor.fetchall():
-        decrypted_content = cipher.decrypt(row[1]).decode("utf-8")
-        decrypted_tags = cipher.decrypt(row[4]).decode("utf-8").split(',')
-        entry = MemoryEntry(
-            id=row[0],
-            content=decrypted_content,
-            importance=row[2],
-            decay_rate=row[3],
-            tags=decrypted_tags,
-            created_at=row[5],
-            last_accessed=row[6]
-        )
+        decrypted = cipher.decrypt(row[1])
+        entry_dict = json.loads(decrypted.decode("utf-8"))
+        entry = MemoryEntry(**entry_dict)
         memories.append(entry)
     return memories
 

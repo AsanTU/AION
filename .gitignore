@@ -2,3 +2,4 @@
 __pycache__/
 
 memory.key
+fernet.key
