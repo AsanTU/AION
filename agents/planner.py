@@ -1,4 +1,4 @@
-from agents import BaseAgent
+from agents.base import BaseAgent
 from agents.schema import AgentOutput
 
 class PlannerAgent(BaseAgent):
@@ -19,6 +19,7 @@ class PlannerAgent(BaseAgent):
         return AgentOutput(
             agent="Planner",
             goal=user_goal,
+            proposal=proposal,
             risks=risks,
             confidence=confidence,
             next_required_agent="Critic",
