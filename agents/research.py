@@ -28,7 +28,7 @@ class ResearchAgent(BaseAgent):
 
         self.state["explanation"] = explanation
 
-        return AgentOutput(
+        output = AgentOutput(
             agent="Research",
             goal=goal,
             proposal=proposal,
@@ -37,3 +37,7 @@ class ResearchAgent(BaseAgent):
             next_required_agent="Planner",
             explanation=explanation
         ).__dict__
+
+        self.record_conversation(input_data, output)
+
+        return output

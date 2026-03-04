@@ -31,7 +31,7 @@ class ExecutorAgent(BaseAgent):
 
         self.state["explanation"] = explanation
 
-        return AgentOutput(
+        output = AgentOutput(
             agent="Executor",
             goal=goal,
             proposal=proposal,
@@ -40,3 +40,7 @@ class ExecutorAgent(BaseAgent):
             next_required_agent="",
             explanation=explanation
         ).__dict__
+
+        self.record_conversation(input_data, output)
+
+        return output

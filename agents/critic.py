@@ -31,7 +31,7 @@ class CriticAgent(BaseAgent):
 
         self.state["explanation"] = explanation
 
-        return AgentOutput(
+        output = AgentOutput(
             agent="Critic",
             goal=goal,
             proposal=proposal,
@@ -40,3 +40,7 @@ class CriticAgent(BaseAgent):
             next_required_agent="Planner",
             explanation=explanation
         ).__dict__
+    
+        self.record_conversation(input_data, output)
+
+        return output
