@@ -1,8 +1,11 @@
+from dotenv import load_dotenv
+load_dotenv()
 import openai
 from agents.base import BaseAgent
 from agents.schema import AgentOutput
+import os
 
-openai.api_key = "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"
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def call_llm(prompt: str, input_text: str) -> str:
     full_prompt = f"{prompt}\n{input_text}"
