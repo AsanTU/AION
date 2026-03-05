@@ -26,6 +26,13 @@ class ExecutorAgent(BaseAgent):
         goal = input_data.get("goal", "")
         proposal = input_data.get("proposal", "")
         prompt = f"{self.system_prompt}\nGoal: {goal}\nAction: {proposal}\n"
+
+        base_confidence = 0.9
+        confidence = self.calibrated_confidence(base_confidence)
+
+        if self.has_repeated_failure("Execution failed"):
+            prompt += "\nNote: Previous executions failed. Double-check all steps and confirm completion."
+
         result = call_llm(prompt, proposal)
         explanation = f"Executed proposal using LLM backend. Result: {result}"
 
@@ -36,7 +43,7 @@ class ExecutorAgent(BaseAgent):
             goal=goal,
             proposal=proposal,
             risks=input_data.get("risks", []),
-            confidence=0.9,
+            confidence=confidence,
             next_required_agent="",
             explanation=explanation
         ).__dict__

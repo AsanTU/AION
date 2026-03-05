@@ -11,6 +11,9 @@ class ResearchAgent(BaseAgent):
         risks = input_data.get("risks", [])
         info_gaps = []
 
+        if self.has_repeated_failure("No example project provided."):
+            info_gaps.append("Repeatedly missing example projects in research. Strongly recommend including one.")
+
         if "project" in proposal.lower() and "example" not in proposal.lower():
             info_gaps.append("No example project provided.")
         if "feedback" in proposal.lower() and "source" not in proposal.lower():
@@ -20,6 +23,9 @@ class ResearchAgent(BaseAgent):
             "Python is widely used for beginner projects. [sorce: python.arg]",
             "Peer feedback accelerates learning. [source: educational research]"
         ]
+
+        base_confidence = 0.75
+        confidence = self.calibrated_confidence(base_confidence)
 
         explanation = (
             f"Identified information gaps: {info_gaps}. "
@@ -33,7 +39,7 @@ class ResearchAgent(BaseAgent):
             goal=goal,
             proposal=proposal,
             risks=risks + info_gaps,
-            confidence=0.75,
+            confidence=confidence,
             next_required_agent="Planner",
             explanation=explanation
         ).__dict__

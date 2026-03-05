@@ -10,7 +10,14 @@ class PlannerAgent(BaseAgent):
         steps = [step.strip() for step in user_goal.replace(',', ',').split(',') if step.strip()]
         proposal = " -> ".join(steps)
         risks = []
-        confidence = 0.8
+        base_confidence = 0.8
+        confidence = self.calibrated_confidence(base_confidence)
+
+        if self.has_repeated_failure("No feedback step included."):
+            if not any("feedback" in step.lower() for step in steps):
+                steps.append("Get feedback")
+                proposal = " -> ".join(steps)
+                risks.append("Feedback step was missing in previous plans; added automatically.")
 
         explanation = f"Decomposed goal into steps: {steps}"
 

@@ -12,6 +12,9 @@ class CriticAgent(BaseAgent):
         improvements = []
         found_risks = list(risks)
 
+        if self.has_repeated_failure("No feedback step included."):
+            improvements.append("Repeatedly missing feedback step in plans. Strongly recommend adding it.")
+
         if not proposal:
             improvements.append("No proposal provided.")
             found_risks.append("No plan to critique.")
@@ -23,6 +26,9 @@ class CriticAgent(BaseAgent):
         
         if "build" in proposal and "learn" not in proposal:
             found_risks.append("Building before learning may be illogical.")
+
+        base_confidence = 0.7
+        confidence = self.calibrated_confidence(base_confidence)
         
         explanation = (
             f"Checked proposal for logical flaws and missing risks. "
@@ -36,7 +42,7 @@ class CriticAgent(BaseAgent):
             goal=goal,
             proposal=proposal,
             risks=found_risks,
-            confidence=0.7,
+            confidence=confidence,
             next_required_agent="Planner",
             explanation=explanation
         ).__dict__
