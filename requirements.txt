@@ -1,0 +1,9 @@
+python-dotenv
+openai
+transformers
+torch
+streamlit
+matplotlib
+numpy
+faiss-cpu
+cryptography
