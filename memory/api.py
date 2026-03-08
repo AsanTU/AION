@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import numpy as np
 
+from memory.backends.chroma_db import add_memory, query_memory
 from memory.utils.importance import compute_importance, effective_score
 
 from typing import List, Optional, Dict, Any
@@ -12,8 +13,8 @@ import time
 from math import exp
 
 class MemoryAPI:
-    def __init__(self, ltsm):
-        self.ltsm = ltsm
+    def __init__(self):
+        pass
 
     def query(self, query: str, tags: Optional[List[str]] = None, time_window: Optional[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
         cutoff = None
@@ -37,7 +38,7 @@ class MemoryAPI:
             now = time.time()
             dt = max(0.0, now - last_accessed)
             decay_factor = 1.0 if decay <= 0 else float(exp(-decay * dt))
-            final_score = similarity * importance * decay_factor
+            final_score = importance * decay_factor
             scores.append(final_score)
             explained.append({
                 "content": entry.content,
@@ -55,6 +56,7 @@ class MemoryAPI:
         return explained
     
     def timeline(self, tags: Optional[List[str]] = None, time_window: Optional[str] = None) -> List[Dict[str, Any]]:
+        results = query_memory("", top_k=1000)
         cutoff = None
         if time_window:
             units = {"month": 30*24*3600, "months": 30*24*3600, "day": 24*3600, "days": 24*3600}
@@ -86,24 +88,27 @@ class MemoryAPI:
     
 
     def influences(self, decision_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        results = self.query(query=decision_id, top_k=top_k)
-        return results
+        return self.query(query=decision_id, top_k=top_k)
     
     def get_memory_history(self, memory_id: str) -> Dict[str, Any]:
-        entry = self.ltsm.db.entries.get(memory_id)
-        if not entry:
-            return {}
-        history = {
-            "content": entry.content,
-            "created_at": entry.created_at,
-            "last_accessed": entry.last_accessed,
-            "importance": entry.importance,
-            "decay_rate": entry.decay_rate,
-            "tags": entry.tags,
-            "reinforcement_events": getattr(entry, "reinforcement_events", []),
-            "decay_curve": self._compute_decay_curve(entry),        
-        }
-        return history
+        # entry = self.ltsm.db.entries.get(memory_id)
+        # if not entry:
+        #     return {}
+        # history = {
+        #     "content": entry.content,
+        #     "created_at": entry.created_at,
+        #     "last_accessed": entry.last_accessed,
+        #     "importance": entry.importance,
+        #     "decay_rate": entry.decay_rate,
+        #     "tags": entry.tags,
+        #     "reinforcement_events": getattr(entry, "reinforcement_events", []),
+        #     "decay_curve": self._compute_decay_curve(entry),        
+        # }
+        # return history
+
+        # TODO Not directly supported in ChromaDB; you may need to store history in metadata or elsewhere
+        return {}
+
     
     def _compute_decay_curve(self, entry, points=20):
         now = time.time()
@@ -116,26 +121,31 @@ class MemoryAPI:
         return curve
 
     def why_chain(self, memory_id: str, depth: int = 2) -> Dict[str, Any]:
-        entry = self.ltsm.db.entries.get(memory_id)
-        if not entry or depth <= 0:
-            return {}
-        influences = getattr(entry, "influences", [])
-        return {
-            "memory": entry.content,
-            "influences": [
-                self.why_chain(inf_id, depth - 1) for inf_id in influences
-            ]
-        }
+        # entry = self.ltsm.db.entries.get(memory_id)
+        # if not entry or depth <= 0:
+        #     return {}
+        # influences = getattr(entry, "influences", [])
+        # return {
+        #     "memory": entry.content,
+        #     "influences": [
+        #         self.why_chain(inf_id, depth - 1) for inf_id in influences
+        #     ]
+        # }
+
+        # TODO Not directly supported in ChromaDB; you may need to store influences in metadata or elsewhere
+        return {}
     
     def delete_memories(self, tag: str = None, content_match: str = None):
-        to_delete = []
-        for mem_id, entry in list(self.ltsm.db.entries.items()):
-            if (tag and tag in entry.tags) or (content_match and content_match in entry.content):
-                to_delete.append(mem_id)
-        for mem_id in to_delete:
-            del self.ltsm.db.entries[mem_id]
-        return len(to_delete)
-    
+        # to_delete = []
+        # for mem_id, entry in list(self.ltsm.db.entries.items()):
+        #     if (tag and tag in entry.tags) or (content_match and content_match in entry.content):
+        #         to_delete.append(mem_id)
+        # for mem_id in to_delete:
+        #     del self.ltsm.db.entries[mem_id]
+        # return len(to_delete)
+
+        # TODO ChromaDB does not support deletion by tag/content natively; you would need to implement this
+        return 0
 
 if TYPE_CHECKING:
     from memory.managers.ltsm import LTSMManager
@@ -182,7 +192,6 @@ def estimate_importance_from_signals(signals: Optional[Dict[str, float]]) -> flo
 
 def write_memory(
         event: Any,
-        ltsm: LTSMManager,
         dim: int = 8, 
         id: Optional[str] = None,
         signals: Optional[Dict[str, float]] = None,
@@ -191,7 +200,6 @@ def write_memory(
     summary = summarize(event)
     tags = classify_tags(event)
     importance = estimate_importance_from_signals(signals or event.get("signals") if isinstance(event, dict) else None)
-    embedding = _deterministic_embed(summary, dim=dim)
 
     if id is None:
         short = hashlib.md5(summary.encode("utf-8")).hexdigest()[:8]
@@ -203,9 +211,11 @@ def write_memory(
         "importance": importance,
         "signals": signals or event.get("signals") if isinstance(event, dict) else {},
         "timestamp": time.time(),
+        "decay_rate": decay_rate,
+        "last_accessed": time.time(),
     }
 
-    ltsm.add_entry(id, embedding, metadata, decay_rate=decay_rate)
+    add_memory(id, summary, metadata)
     return id
 
 def read_memory(
