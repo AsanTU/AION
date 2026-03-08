@@ -4,44 +4,66 @@ import hashlib
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 import numpy as np
+from math import exp
 
 from memory.backends.chroma_db import add_memory, query_memory
 from memory.utils.importance import compute_importance, effective_score
 from memory.utils.decay import decay_score
+from memory.utils.reader import get_memories_by_tag, get_memories_by_type
+from memory.utils.writer import save_memory, delete_memory
 
-from typing import List, Optional, Dict, Any
-import time 
-from math import exp
+if TYPE_CHECKING:
+    from memory.managers.ltsm import LTSMManager
 
 class MemoryAPI:
-    def __init__(self):
-        pass
+    """
+    High-level API for querying, scoring, and explaining memory entries.
+    """
+    def __init__(self, ltsm: Optional["LTSMManager"] = None):
+        self.ltsm = ltsm
 
-    def query(self, query: str, tags: Optional[List[str]] = None, time_window: Optional[str] = None, top_k: int = 5) -> List[Dict[str, Any]]:
+    def query(
+        self,
+        query: str,
+        tags: Optional[List[str]] = None,
+        time_window: Optional[str] = None,
+        top_k: int = 5
+    ) -> List[Dict[str, Any]]:
+        """
+        Query memories with optional tag and time filtering, returning scored/explained results.
+        Uses cosine similarity between the query and memory embeddings.
+        """
+        def cosine_similarity(a, b):
+            a = np.array(a)
+            b = np.array(b)
+            return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
+            
         cutoff = None
         if time_window:
-            units = {"month": 30*24*3600, "moths": 30*24*3600, "day": 24*3600, "days": 24*3600}
+            units = {"month": 30*24*3600, "months": 30*24*3600, "day": 24*3600, "days": 24*3600}
             parts = time_window.split()
             if len(parts) == 2 and parts[1] in units:
                 cutoff = time.time() - int(parts[0]) * units[parts[1]]
 
-        
+        if not self.ltsm:
+            return []
+        query_vec = _deterministic_embed(query, dim=getattr(self.ltsm, "dim", 8))
+
         results = self.ltsm.read(query, top_k=top_k, tag_filter=tags)
         explained = []
         scores = []
+        now = time.time()
         for entry in results:
             if cutoff and entry.created_at < cutoff:
                 continue
-            similarity = 1.0
+            similarity = cosine_similarity(query_vec, entry.embedding)
             importance = entry.importance
-            created_at = entry.created_at
-            now = time.time()
-            age_days = (now - created_at) / (60 * 60 * 24)
+            age_days = (now - entry.created_at) / (60 * 60 * 24)
             final_score = decay_score(importance, age_days)
             scores.append(final_score)
             explained.append({
                 "content": entry.content,
-                "why_selected": f"Similarity={similarity:.3f}, Importance={importance:.3f}, AgeDays={age_days:.3f}",                
+                "why_selected": f"Similarity={similarity:.3f}, Importance={importance:.3f}, AgeDays={age_days:.3f}",
                 "confidence_score": final_score,
                 "metadata": {
                     "tags": entry.tags,
@@ -50,19 +72,28 @@ class MemoryAPI:
                 }
             })
         max_score = max(scores) if scores else 1.0
-        for i, e in enumerate(explained):
+        for e in explained:
             e["confidence_score"] = e["confidence_score"] / max_score if max_score > 0 else 0.0
         return explained
-    
-    def timeline(self, tags: Optional[List[str]] = None, time_window: Optional[str] = None) -> List[Dict[str, Any]]:
-        results = query_memory("", top_k=1000)
+
+    def timeline(
+        self,
+        tags: Optional[List[str]] = None,
+        time_window: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Return a timeline of memories, optionally filtered by tags and time window.
+        """
         cutoff = None
         if time_window:
             units = {"month": 30*24*3600, "months": 30*24*3600, "day": 24*3600, "days": 24*3600}
             parts = time_window.split()
             if len(parts) == 2 and parts[1] in units:
                 cutoff = time.time() - int(parts[0]) * units[parts[1]]
-        
+
+        if not self.ltsm:
+            return []
+
         all_entries = list(self.ltsm.db.entries.values())
         filtered = []
         for entry in all_entries:
@@ -84,72 +115,108 @@ class MemoryAPI:
             }
             for e in filtered
         ]
-    
 
     def influences(self, decision_id: str, top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Return memories influencing a given decision.
+        """
         return self.query(query=decision_id, top_k=top_k)
-    
+
     def get_memory_history(self, memory_id: str) -> Dict[str, Any]:
-        # entry = self.ltsm.db.entries.get(memory_id)
-        # if not entry:
-        #     return {}
-        # history = {
-        #     "content": entry.content,
-        #     "created_at": entry.created_at,
-        #     "last_accessed": entry.last_accessed,
-        #     "importance": entry.importance,
-        #     "decay_rate": entry.decay_rate,
-        #     "tags": entry.tags,
-        #     "reinforcement_events": getattr(entry, "reinforcement_events", []),
-        #     "decay_curve": self._compute_decay_curve(entry),        
-        # }
-        # return history
+        """
+        Return the history of a memory entry, if available.
+        History is stored in the entry's metadata['history'] list.
+        """
+        if not self.ltsm or not hasattr(self.ltsm, "db"):
+            return {}
 
-        # TODO Not directly supported in ChromaDB; you may need to store history in metadata or elsewhere
-        return {}
+        entry = self.ltsm.db.entries.get(memory_id)
+        if not entry:
+            return {}
 
-    
-    def _compute_decay_curve(self, entry, points=20):
+        history = entry.metadata.get("history", [])
+        # Always include the current state as the latest event
+        current_state = {
+            "content": entry.content,
+            "created_at": entry.created_at,
+            "last_accessed": entry.last_accessed,
+            "importance": entry.importance,
+            "decay_rate": entry.decay_rate,
+            "tags": entry.tags,
+            "timestamp": time.time(),
+            "event": "current_state"
+        }
+        return {
+            "id": entry.id,
+            "history": history + [current_state]
+        }
+
+    def _compute_decay_curve(self, entry, points: int = 20) -> List[Dict[str, float]]:
+        """
+        Compute a decay curve for a memory entry.
+        """
         now = time.time()
         curve = []
         for i in range(points):
-            t = entry.created_at + 1 * (now - entry.created_at) / points
+            t = entry.created_at + i * (now - entry.created_at) / points
             dt = (now - t) / 60.0
             score = entry.importance * exp(-entry.decay_rate * dt)
             curve.append({"timestamp": t, "score": score})
         return curve
 
     def why_chain(self, memory_id: str, depth: int = 2) -> Dict[str, Any]:
-        # entry = self.ltsm.db.entries.get(memory_id)
-        # if not entry or depth <= 0:
-        #     return {}
-        # influences = getattr(entry, "influences", [])
-        # return {
-        #     "memory": entry.content,
-        #     "influences": [
-        #         self.why_chain(inf_id, depth - 1) for inf_id in influences
-        #     ]
-        # }
+        """
+        Recursively explain why a memory was selected, by following its 'influences' in metadata.
+        """
+        if not self.ltsm or not hasattr(self.ltsm, "db") or depth <= 0:
+            return {}
 
-        # TODO Not directly supported in ChromaDB; you may need to store influences in metadata or elsewhere
-        return {}
+        entry = self.ltsm.db.entries.get(memory_id)
+        if not entry:
+            return {}
+
+        influences = entry.metadata.get("influences", [])
+        return {
+            "id": entry.id,
+            "content": entry.content,
+            "tags": entry.tags,
+            "created_at": entry.created_at,
+            "importance": entry.importance,
+            "decay_rate": entry.decay_rate,
+            "last_accessed": entry.last_accessed,
+            "influences": [
+                self.why_chain(inf_id, depth - 1) for inf_id in influences
+            ] if influences and depth > 1 else []
+        }
+
+    def delete_memories(self, tag: Optional[str] = None, content_match: Optional[str] = None) -> int:
+        """
+        Delete memories by tag or content match.
+        Returns the number of deleted entries.
+        """
+        if not self.ltsm or not hasattr(self.ltsm, "db"):
+            return 0
     
-    def delete_memories(self, tag: str = None, content_match: str = None):
-        # to_delete = []
-        # for mem_id, entry in list(self.ltsm.db.entries.items()):
-        #     if (tag and tag in entry.tags) or (content_match and content_match in entry.content):
-        #         to_delete.append(mem_id)
-        # for mem_id in to_delete:
-        #     del self.ltsm.db.entries[mem_id]
-        # return len(to_delete)
+        to_delete = []
+        for mem_id, entry in list(self.ltsm.db.entries.items()):
+            tag_match = tag and tag in entry.tags
+            content_match_found = content_match and content_match in entry.content
+            if tag_match or content_match_found:
+                to_delete.append(mem_id)
+    
+        for mem_id in to_delete:
+            delete_memory(mem_id)
+            # Optionally, also remove from in-memory index if needed:
+            self.ltsm.db.entries.pop(mem_id, None)
+    
+        return len(to_delete)
 
-        # TODO ChromaDB does not support deletion by tag/content natively; you would need to implement this
-        return 0
-
-if TYPE_CHECKING:
-    from memory.managers.ltsm import LTSMManager
+# --- Utility Functions ---
 
 def summarize(event: Any) -> str:
+    """
+    Summarize an event for storage.
+    """
     if isinstance(event, dict):
         if "text" in event:
             return str(event["text"])[:1000]
@@ -157,6 +224,9 @@ def summarize(event: Any) -> str:
     return str(event)[:1000]
 
 def classify_tags(event: Any) -> List[str]:
+    """
+    Classify tags for an event.
+    """
     tags: List[str] = []
     if isinstance(event, dict):
         if "decision" in event:
@@ -165,13 +235,16 @@ def classify_tags(event: Any) -> List[str]:
             tags.append("emotion")
         if event.get("success") is True:
             tags.append("success")
-        if event.get("failure") is  True:
+        if event.get("failure") is True:
             tags.append("failure")
         if "tags" in event and isinstance(event["tags"], list):
             tags.extend([str(t) for t in event["tags"]])
     return list(dict.fromkeys([t.lower() for t in tags]))
 
 def _deterministic_embed(text: str, dim: int = 8) -> List[float]:
+    """
+    Deterministically embed text into a fixed-size vector.
+    """
     h = hashlib.sha256(text.encode("utf-8")).digest()
     needed = dim * 4
     rep = (h * ((needed // len(h)) + 1))[:needed]
@@ -181,6 +254,9 @@ def _deterministic_embed(text: str, dim: int = 8) -> List[float]:
     return arr.tolist()
 
 def estimate_importance_from_signals(signals: Optional[Dict[str, float]]) -> float:
+    """
+    Estimate importance from signals.
+    """
     if not signals:
         return 0.5
     return compute_importance(
@@ -190,15 +266,18 @@ def estimate_importance_from_signals(signals: Optional[Dict[str, float]]) -> flo
     )
 
 def write_memory(
-        event: Any,
-        dim: int = 8, 
-        id: Optional[str] = None,
-        signals: Optional[Dict[str, float]] = None,
-        decay_rate: float = 0.001,
+    event: Any,
+    dim: int = 8,
+    id: Optional[str] = None,
+    signals: Optional[Dict[str, float]] = None,
+    decay_rate: float = 0.001,
 ) -> str:
+    """
+    Write a memory event to storage.
+    """
     summary = summarize(event)
     tags = classify_tags(event)
-    importance = estimate_importance_from_signals(signals or event.get("signals") if isinstance(event, dict) else None)
+    importance = estimate_importance_from_signals(signals or (event.get("signals") if isinstance(event, dict) else None))
 
     if id is None:
         short = hashlib.md5(summary.encode("utf-8")).hexdigest()[:8]
@@ -208,7 +287,7 @@ def write_memory(
         "content": summary,
         "tags": tags,
         "importance": importance,
-        "signals": signals or event.get("signals") if isinstance(event, dict) else {},
+        "signals": signals or (event.get("signals") if isinstance(event, dict) else {}),
         "timestamp": time.time(),
         "decay_rate": decay_rate,
         "last_accessed": time.time(),
@@ -224,7 +303,9 @@ def read_memory(
     type_filter: Optional[List[str]] = None,
     tag_filter: Optional[List[str]] = None,
 ) -> List[Any]:
-    
+    """
+    Read memories using vector search and filter.
+    """
     if isinstance(query, str):
         qvec = _deterministic_embed(query, dim=getattr(ltsm, "dim", 8))
     else:
@@ -264,7 +345,7 @@ def read_memory(
             similarity = 1.0 / (1.0 * float(dist))
         except Exception:
             similarity = 0.0
-            
+
         imp_decay = effective_score(entry.importance, entry.decay_rate, timestamp=entry.last_accessed, now_ts=now)
         final_score = similarity * float(imp_decay)
 
