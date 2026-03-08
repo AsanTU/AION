@@ -1,20 +1,21 @@
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 import uuid
 import time
 
 from memory.core.schema import MemoryEntry
 from memory.api import _deterministic_embed
-from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
+from memory.utils.reader import get_memories_by_type
+from memory.utils.writer import save_memory, delete_memory
 
 class SkillMemory:
     """
     Manages skill memories: tracks skill values and their history.
     """
     def __init__(self):
+        # Load only 'skill' type memories
         self.skills: Dict[str, MemoryEntry] = {
             entry.content: entry
-            for entry in load_memories()
-            if getattr(entry, "type", None) == "skill"
+            for entry in get_memories_by_type("skill")
         }
 
     def add_or_update_skill(
@@ -28,14 +29,13 @@ class SkillMemory:
         Add a new skill or update an existing skill's value and history.
         """
         now = time.time()
-        if skill_name in self.skills:
-            entry = self.skills[skill_name]
+        entry = self.skills.get(skill_name)
+        if entry:
             entry.metadata.setdefault("history", []).append({"timestamp": now, "value": value})
             entry.metadata["current_value"] = value
             if tags:
                 entry.tags = list(dict.fromkeys(entry.tags + tags))
                 entry.metadata["tags"] = entry.tags
-            add_memory(entry)
         else:
             entry_id = f"skill-{uuid.uuid4().hex}"
             history = [{"timestamp": now, "value": value}]
@@ -62,8 +62,8 @@ class SkillMemory:
                 metadata=metadata
             )
             self.skills[skill_name] = entry
-            add_memory(entry)
-        return self.skills[skill_name]
+        save_memory(entry)
+        return entry
 
     def delete_skill(self, skill_name: str) -> None:
         """

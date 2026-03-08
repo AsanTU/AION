@@ -1,12 +1,12 @@
 from typing import Dict, Optional, List, Any
 import threading
 import time
-from datetime import datetime, timedelta, timezone
 
 from memory.utils.importance import compute_importance, effective_score, reinforce_importance
 from memory.core.schema import MemoryEntry
 from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
-from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
+from memory.utils.reader import get_memories_by_type
+from memory.utils.writer import save_memory, delete_memory
 
 class ShortTermMemory:
     """
@@ -15,8 +15,7 @@ class ShortTermMemory:
     def __init__(self, eviction_interval: int = 60, start_eviction_thread: bool = True):
         self.store: Dict[str, MemoryEntry] = {
             entry.id: entry
-            for entry in load_memories()
-            if getattr(entry, "type", None) == "semantic"
+            for entry in get_memories_by_type("semantic")
         }
         self._lock = threading.Lock()
         self._eviction_interval = eviction_interval
@@ -72,7 +71,7 @@ class ShortTermMemory:
         )
         with self._lock:
             self.store[key] = entry
-        add_memory(entry)
+        save_memory(entry)
 
     def get(self, key: str) -> Optional[str]:
         with self._lock:
@@ -82,12 +81,14 @@ class ShortTermMemory:
             expires_at = entry.metadata.get("expires_at")
             if expires_at and time.time() > expires_at:
                 del self.store[key]
+                delete_memory(key)
                 return None
             imp = entry.metadata.get("importance", 0.0)
             decay = entry.metadata.get("decay_rate", entry.decay_rate)
             ts = entry.last_accessed or entry.created_at
             if effective_score(imp, decay, timestamp=ts) < 0.01:
                 del self.store[key]
+                delete_memory(key)
                 return None
             return entry.content
 
@@ -101,7 +102,7 @@ class ShortTermMemory:
             new_imp = reinforce_importance(current, reinforcement, boost=boost)
             entry.metadata["importance"] = new_imp
             entry.last_accessed = now
-        add_memory(entry)
+        save_memory(entry)
 
     def cleanup(self) -> None:
         now = time.time()

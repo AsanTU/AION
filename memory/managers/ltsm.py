@@ -3,7 +3,9 @@ from typing import Dict, List, Optional, Any
 from memory.core.schema import MemoryEntry
 from memory.backends.vector_db import VectorDB
 from memory.utils.importance import compute_importance
-from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
+from memory.storage.sqlite_storage import load_memories, delete_memory
+from memory.utils.writer import save_memory, batch_save_memories
+from memory.utils.reader import get_memories_by_tag, get_memories_by_type, get_recent_memories
 
 class LTSMManager:
     """
@@ -54,7 +56,19 @@ class LTSMManager:
         )
         self.db.add(entry)
         self.entries[entry.id] = entry
-        add_memory(entry)
+        save_memory(entry)
+
+    def add_entries_batch(self, entries_data: List[Dict[str, Any]]) -> None:
+        """
+        Add multiple memory entries in a batch.
+        """
+        new_entries = []
+        for data in entries_data:
+            entry = MemoryEntry(**data)
+            self.db.add(entry)
+            self.entries[entry.id] = entry
+            new_entries.append(entry)
+        batch_save_memories(new_entries)
 
     def write(
         self,
@@ -110,3 +124,21 @@ class LTSMManager:
         if memory_id in self.entries:
             del self.entries[memory_id]
             delete_memory(memory_id)
+
+    def find_by_tag(self, tag: str) -> List[MemoryEntry]:
+        """
+        Find LTSM memories by tag.
+        """
+        return get_memories_by_tag(list(self.entries.values()), tag)
+
+    def find_by_type(self, mem_type: str) -> List[MemoryEntry]:
+        """
+        Find LTSM memories by type.
+        """
+        return get_memories_by_type(list(self.entries.values()), mem_type)
+
+    def get_recent(self, n: int = 10) -> List[MemoryEntry]:
+        """
+        Get the n most recently accessed LTSM memories.
+        """
+        return get_recent_memories(list(self.entries.values()), n)

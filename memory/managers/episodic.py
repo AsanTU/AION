@@ -1,11 +1,12 @@
 from typing import List, Optional, Dict, Any
-from datetime import datetime
 import uuid
 import time
 
 from memory.core.schema import MemoryEntry
 from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
-from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
+from memory.storage.sqlite_storage import load_memories, delete_memory
+from memory.utils.reader import get_memories_by_tag
+from memory.utils.writer import save_memory, batch_save_memories
 
 class EpisodicMemory:
     """
@@ -58,8 +59,28 @@ class EpisodicMemory:
         )
 
         self.entries.append(entry)
-        add_memory(entry)
+        save_memory(entry)
         return entry
+
+    def add_entries_batch(self, entries_data: List[Dict[str, Any]], dim: int = 8) -> List[MemoryEntry]:
+        """
+        Add multiple episodic memory entries in a batch.
+        """
+        new_entries = []
+        for data in entries_data:
+            entry = self.add_entry(
+                situation=data["situation"],
+                decision=data["decision"],
+                outcome=data["outcome"],
+                confidence=data.get("confidence", 0.0),
+                tags=data.get("tags"),
+                timestamp=data.get("timestamp"),
+                dim=dim,
+                signals=data.get("signals")
+            )
+            new_entries.append(entry)
+        batch_save_memories(new_entries)
+        return new_entries
 
     def delete_entry(self, entry_id: str) -> None:
         """
@@ -78,4 +99,4 @@ class EpisodicMemory:
         """
         Find episodic memories by tag.
         """
-        return [e for e in self.entries if tag in e.tags]
+        return get_memories_by_tag(self.entries, tag)
