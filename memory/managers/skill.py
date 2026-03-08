@@ -23,23 +23,34 @@ class SkillMemory:
         skill_name: str,
         value: float,
         tags: Optional[List[str]] = None,
+        importance: float = 0.5,
+        confidence: float = 0.5,
+        content: Optional[str] = None,
         dim: int = 8
     ) -> MemoryEntry:
         """
-        Add a new skill or update an existing skill's value and history.
+        Add or update a skill, tracking value, importance, confidence, and history.
         """
         now = time.time()
         entry = self.skills.get(skill_name)
         if entry:
-            entry.metadata.setdefault("history", []).append({"timestamp": now, "value": value})
+            entry.metadata.setdefault("history", []).append({
+                "timestamp": now, "value": value, "importance": importance, "confidence": confidence, "tags": tags or []
+            })
             entry.metadata["current_value"] = value
+            entry.importance = importance
+            entry.confidence = confidence
             if tags:
                 entry.tags = list(dict.fromkeys(entry.tags + tags))
                 entry.metadata["tags"] = entry.tags
+            if content:
+                entry.content = content
         else:
             entry_id = f"skill-{uuid.uuid4().hex}"
-            history = [{"timestamp": now, "value": value}]
-            embedding = _deterministic_embed(skill_name, dim=dim)
+            history = [{
+                "timestamp": now, "value": value, "importance": importance, "confidence": confidence, "tags": tags or []
+            }]
+            embedding = _deterministic_embed(content or skill_name, dim=dim)
             metadata = {
                 "skill_name": skill_name,
                 "current_value": value,
@@ -48,12 +59,12 @@ class SkillMemory:
             }
             entry = MemoryEntry(
                 id=entry_id,
-                content=skill_name,
+                content=content or skill_name,
                 embedding=embedding,
                 type="skill",
                 tags=tags or [],
-                importance=0.0,
-                confidence=0.0,
+                importance=importance,
+                confidence=confidence,
                 created_at=now,
                 last_accessed=now,
                 decay_rate=0.0,
