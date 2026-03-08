@@ -41,7 +41,7 @@ class MemoryAPI:
             scores.append(final_score)
             explained.append({
                 "content": entry.content,
-                "why_selected": f"Similarity={similarity:.3f}, Importance={importance:.3f}, Decay={decay_factor:.3f}",
+                "why_selected": f"Similarity={similarity:.3f}, Importance={importance:.3f}, AgeDays={age_days:.3f}",                
                 "confidence_score": final_score,
                 "metadata": {
                     "tags": entry.tags,
