@@ -7,6 +7,7 @@ import numpy as np
 
 from memory.backends.chroma_db import add_memory, query_memory
 from memory.utils.importance import compute_importance, effective_score
+from memory.utils.decay import decay_score
 
 from typing import List, Optional, Dict, Any
 import time 
@@ -33,12 +34,10 @@ class MemoryAPI:
                 continue
             similarity = 1.0
             importance = entry.importance
-            decay = entry.decay_rate
-            last_accessed = entry.last_accessed
+            created_at = entry.created_at
             now = time.time()
-            dt = max(0.0, now - last_accessed)
-            decay_factor = 1.0 if decay <= 0 else float(exp(-decay * dt))
-            final_score = importance * decay_factor
+            age_days = (now - created_at) / (60 * 60 * 24)
+            final_score = decay_score(importance, age_days)
             scores.append(final_score)
             explained.append({
                 "content": entry.content,
