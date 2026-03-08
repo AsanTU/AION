@@ -1,20 +1,39 @@
-from typing import List
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import uuid
+import time
 
 from memory.core.schema import MemoryEntry
 from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
 from memory.storage.sqlite_storage import load_memories, add_memory, delete_memory
 
 class EpisodicMemory:
+    """
+    Manages episodic memories: decisions, situations, and outcomes.
+    """
     def __init__(self):
-        self.entries: List[MemoryEntry] = [e for e in load_memories() if getattr(e, "type", None) == "episodic"]
-    
-    def add_entry(self, situation, decisioin, outcome, confidence, tags=None, timestamp=None, dim: int = 8, signals: dict | None = None):
-        ts = timestamp or datetime.now().isoformat()
+        self.entries: List[MemoryEntry] = [
+            e for e in load_memories() if getattr(e, "type", None) == "episodic"
+        ]
+
+    def add_entry(
+        self,
+        situation: str,
+        decision: str,
+        outcome: str,
+        confidence: float,
+        tags: Optional[List[str]] = None,
+        timestamp: Optional[float] = None,
+        dim: int = 8,
+        signals: Optional[Dict[str, Any]] = None
+    ) -> MemoryEntry:
+        """
+        Add a new episodic memory entry.
+        """
+        ts = timestamp or time.time()
         summary = summarize({"text": situation})
         pipeline_tags = list(dict.fromkeys((tags or []) + classify_tags({"text": situation})))
-        importance = estimate_importance_from_signals(signals)
+        importance = estimate_importance_from_signals(signals or {})
 
         entry_id = f"episodic-{uuid.uuid4().hex}"
         embedding = _deterministic_embed(summary, dim=dim)
@@ -31,21 +50,32 @@ class EpisodicMemory:
             decay_rate=0.0,
             source="episodic",
             linked_memories=[],
-            metadata={"decision": decisioin, "outcome": outcome, "timestamp": ts},
-            public_memories = [m for m in self.ltsm.db.entries.values() if m.visibility == "public"]
+            metadata={
+                "decision": decision,
+                "outcome": outcome,
+                "timestamp": ts
+            }
         )
-        entry.decision = decisioin
-        entry.outcome = outcome
 
         self.entries.append(entry)
         add_memory(entry)
-    
-    def delete_entry(self, entry_id):
+        return entry
+
+    def delete_entry(self, entry_id: str) -> None:
+        """
+        Delete an episodic memory entry by ID.
+        """
         self.entries = [e for e in self.entries if e.id != entry_id]
         delete_memory(entry_id)
 
-    def get_all(self):
+    def get_all(self) -> List[MemoryEntry]:
+        """
+        Get all episodic memory entries.
+        """
         return self.entries
-    
-    def find_by_tag(self, tag):
+
+    def find_by_tag(self, tag: str) -> List[MemoryEntry]:
+        """
+        Find episodic memories by tag.
+        """
         return [e for e in self.entries if tag in e.tags]
