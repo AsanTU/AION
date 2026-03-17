@@ -7,6 +7,7 @@ import numpy as np
 from math import exp
 
 from memory.backends.chroma_db import add_memory, query_memory
+from memory.utils.cli import print_reasoning_memories
 from memory.utils.importance import compute_importance, effective_score
 from memory.utils.decay import decay_score
 from memory.utils.reader import get_memories_by_tag, get_memories_by_type
@@ -121,6 +122,13 @@ class MemoryAPI:
         Return memories influencing a given decision.
         """
         return self.query(query=decision_id, top_k=top_k)
+
+    def print_reasoning(self, decision: str, top_k: int = 5) -> None:
+        """
+        Print the memories that influenced a decision in a readable CLI format.
+        """
+        memories = self.influences(decision, top_k=top_k)
+        print_reasoning_memories(memories, decision)
 
     def get_memory_history(self, memory_id: str) -> Dict[str, Any]:
         """
