@@ -1,5 +1,5 @@
 from memory.core.schema import MemoryEntry
-from memory.storage.sqlite_storage import add_memory
+from memory.storage.sqlite_storage import add_memory, delete_memory
 
 def save_memory(entry: MemoryEntry) -> None:
     """Save a memory entry to storage."""
