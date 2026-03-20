@@ -1,12 +1,32 @@
 import unittest
 from memory.api import MemoryAPI
 from memory.core.schema import MemoryEntry
+import time
 
 class DummyLTSM:
     def read(self, query, top_k=5, tag_filter=None):
+        now = int(time.time())
         return [
-            MemoryEntry(id="1",content="A", importance=0.9, decay_rate=0.01, last_accessed=1000, created_at=1000, tags=["decision"]),
-            MemoryEntry(id="2",content="B", importance=0.5, decay_rate=0.02, last_accessed=1000, created_at=1000, tags=["decision"]),
+            MemoryEntry(
+                id="1",
+                content="A",
+                importance=0.9,
+                decay_rate=0.01,
+                last_accessed=now,
+                created_at=now,
+                tags=["decision"],
+                embedding=[0.1] * 8
+            ),
+            MemoryEntry(
+                id="2",
+                content="B",
+                importance=0.5,
+                decay_rate=0.02,
+                last_accessed=now,
+                created_at=now,
+                tags=["decision"],
+                embedding=[0.2] * 8
+            )
         ]
     
 class TestMemoryAPI(unittest.TestCase):
