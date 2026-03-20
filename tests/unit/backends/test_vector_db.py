@@ -53,5 +53,61 @@ class TestVectorDB(unittest.TestCase):
         called_arg = index_mock.add.call_args[0][0]
         np.testing.assert_array_equal(called_arg, np.array(entry.embedding, dtype="float32").reshape(1, -1))
 
+    def test_add_batch_and_query():
+        db = VectorDB(dim=3)
+        entries = [
+            MemoryEntry(id="e1", content="c1", embedding=[0.1, 0.2, 0.3], type="t"),
+            MemoryEntry(id="e2", content="c2", embedding=[0.4, 0.5, 0.6], type="t"),
+        ]
+        db.add_batch(entries)
+        results = db.query([0.1, 0.2, 0.3], top_k=2)
+        result_ids = {e.id for e in results}
+        assert "e1" in result_ids
+        assert "e2" in result_ids
+
+    def test_add_wrong_embedding_dimension_raises():
+        db = VectorDB(dim=3)
+        entry = MemoryEntry(id="e1", content="c", embedding=[1, 2], type="t")  # Only 2 dims
+        try:
+            db.add(entry)
+            assert False, "Expected ValueError for wrong embedding dimension"
+        except ValueError as e:
+            assert "embedding dimension mismatch" in str(e)
+
 if __name__ == "__main__":
-    unittest.main()
+    test = TestVectorDB()
+
+    try:
+        print("Running test_add_and_query_returns_entry...")
+        test.test_add_and_query_returns_entry()
+        print("Passed.\n")
+    except Exception as e:
+        print(f"FAILED: {e}\n")
+
+    try:
+        print("Running test_query_ignores_negative_indices...")
+        test.test_query_ignores_negative_indices()
+        print("Passed.\n")
+    except Exception as e:
+        print(f"FAILED: {e}\n")
+
+    try:
+        print("Running test_add_calls_index_add_with_correct_shape...")
+        test.test_add_calls_index_add_with_correct_shape()
+        print("Passed.\n")
+    except Exception as e:
+        print(f"FAILED: {e}\n")
+
+    try:
+        print("Running test_add_batch_and_query...")
+        test.test_add_batch_and_query()
+        print("Passed.\n")
+    except Exception as e:
+        print(f"FAILED: {e}\n")
+
+    try:
+        print("Running test_add_wrong_embedding_dimension_raises...")
+        test.test_add_wrong_embedding_dimension_raises()
+        print("Passed.\n")
+    except Exception as e:
+        print(f"FAILED: {e}\n")
