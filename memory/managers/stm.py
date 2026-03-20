@@ -7,17 +7,20 @@ from memory.core.schema import MemoryEntry
 from memory.api import summarize, classify_tags, estimate_importance_from_signals, _deterministic_embed
 from memory.utils.reader import get_memories_by_type
 from memory.utils.writer import save_memory, delete_memory
+from memory.storage.sqlite_storage import load_memories
 
 class ShortTermMemory:
     """
     Manages short-term (semantic) memories with TTL and automatic eviction.
     """
     def __init__(self, eviction_interval: int = 60, start_eviction_thread: bool = True):
+        from memory.storage.sqlite_storage import load_memories
+        all_entries = load_memories()
+        self._lock = threading.Lock()
         self.store: Dict[str, MemoryEntry] = {
             entry.id: entry
-            for entry in get_memories_by_type("semantic")
+            for entry in get_memories_by_type(all_entries, "semantic")
         }
-        self._lock = threading.Lock()
         self._eviction_interval = eviction_interval
         self._stop_event = threading.Event()
         if start_eviction_thread:

@@ -48,5 +48,30 @@ class TestShortTermMemory(unittest.TestCase):
         values = [stm.get(f"k{i}") for i in range(100)]
         self.assertEqual(values, [f"v{i}" for i in range(100)])
 
+    def test_reinforce(self):
+        stm = ShortTermMemory(start_eviction_thread=False)
+        stm.set("reinforce_key", "important", ttl_minutes=10, importance=0.1)
+        before = stm.store["reinforce_key"].metadata["importance"]
+        stm.reinforce("reinforce_key", {"reward": 1.0}, boost=0.2)
+        after = stm.store["reinforce_key"].metadata["importance"]
+        self.assertGreater(after, before)
+    
+    def test_set_ltsm(self):
+        stm = ShortTermMemory(start_eviction_thread=False)
+        class DummyLTSM:
+            pass
+        dummy = DummyLTSM()
+        stm.set_ltsm(dummy)
+        self.assertIs(stm.ltsm, dummy)
+    
+    def test_semantic_query(self):
+        class DummyLTSM:
+            def read(self, query, top_k=5, type_filter=None, tag_filter=None):
+                return ["result1", "result2"]
+        stm = ShortTermMemory(start_eviction_thread=False)
+        stm.set_ltsm(DummyLTSM())
+        results = stm.semantic_query("query", top_k=2)
+        self.assertEqual(results, ["result1", "result2"])    
+
 if __name__ == "__main__":
     unittest.main()
