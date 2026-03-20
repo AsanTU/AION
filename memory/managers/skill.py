@@ -6,16 +6,17 @@ from memory.core.schema import MemoryEntry
 from memory.api import _deterministic_embed
 from memory.utils.reader import get_memories_by_type
 from memory.utils.writer import save_memory, delete_memory
+from memory.storage.sqlite_storage import load_memories
 
 class SkillMemory:
     """
     Manages skill memories: tracks skill values and their history.
     """
     def __init__(self):
-        # Load only 'skill' type memories
+        all_entries = load_memories()
         self.skills: Dict[str, MemoryEntry] = {
             entry.content: entry
-            for entry in get_memories_by_type("skill")
+            for entry in get_memories_by_type(all_entries, "skill")
         }
 
     def add_or_update_skill(
