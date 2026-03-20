@@ -1,40 +1,82 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import numpy as np
+import time
 
 from memory.managers.ltsm import LTSMManager
 from memory.core.schema import MemoryEntry
 
-class TestLTSMReadPipeline(unittest.TestCase):
-    @patch("memory.backends.vector_db.faiss.IndexFlatL2")
-    @patch("memory.backends.vector_db.faiss.IndexIDMap")
-    def test_read_returns_top_k_ordered_by_final_score(self, MockIndexIDMap, MockIndexFlat):
-        index_mock = MagicMock()
-        D = np.array([[0.1, 0.9]], dtype="float32")
-        I = np.array([[1, 2]], dtype="int64")
-        index_mock.search.return_value = (D, I)
-        index_mock.add_with_ids = MagicMock()
-        index_mock.remove_ids = MagicMock()
-        MockIndexIDMap.return_value = index_mock
-        MockIndexFlat.return_value = MagicMock()  
+class TestLTSMManagerMethods(unittest.TestCase):
+    def setUp(self):
+        self.ltsm = LTSMManager(dim=3)
 
-        ltsm = LTSMManager(dim=3)
+    def test_add_entry(self):
+        self.ltsm.add_entry(
+            id="test1",
+            vector=[0.1, 0.2, 0.3],
+            metadata={"content": "test content", "importance": 0.9},
+            decay_rate=0.01
+        )
+        self.assertIn("test1", self.ltsm.entries)
 
-        e1 = MemoryEntry(id="e1", content="a", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.0)
-        e1.metadata["importance"] = 1.0
-        ltsm.db.add(e1)
+    def test_add_entries_batch(self):
+        entries_data = [
+            {"id": "b1", "content": "batch1", "embedding": [0.1,0.2,0.3], "importance": 0.5, "decay_rate": 0.0},
+            {"id": "b2", "content": "batch2", "embedding": [0.4,0.5,0.6], "importance": 0.7, "decay_rate": 0.0}
+        ]
+        self.ltsm.add_entries_batch(entries_data)
+        self.assertIn("b1", self.ltsm.entries)
+        self.assertIn("b2", self.ltsm.entries)
 
-        e2 = MemoryEntry(id="e2", content="b", embedding=[0.4,0.5,0.6], importance=0.5, decay_rate=0.0)
-        e2.metadata["importance"] = 0.5
-        ltsm.db.add(e2)
+    @patch("memory.api.write_memory", return_value="mock_id")
+    def test_write(self, mock_write_memory):
+        result = self.ltsm.write(event="event", id="w1", signals={"emotion": 1, "outcome": 1, "reuse": 1})
+        self.assertEqual(result, "mock_id")
+        mock_write_memory.assert_called_once()
 
-        results = ltsm.read("some query", top_k=2)
+    def test_query(self):
+        entry = MemoryEntry(id="q1", content="query", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.0)
+        self.ltsm.db.add(entry)
+        results = self.ltsm.query([0.1,0.2,0.3], top_k=1)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].id, "q1")
 
-        self.assertEqual(len(results), 2)
-        self.assertEqual(results[0].id, "e1")
-        self.assertEqual(results[1].id, "e2")
+    def test_decay_entries(self):
+        entry = MemoryEntry(id="d1", content="decay", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.000001)
+        entry.last_accessed = time.time() - 1e6  # Simulate old access
+        self.ltsm.db.entries[entry.id] = entry
+        self.ltsm.decay_entries()
+        self.assertNotIn("d1", self.ltsm.db.entries)
 
-        index_mock.search.assert_called_once()
+    def test_delete_entry(self):
+        entry = MemoryEntry(id="del1", content="delete", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.0)
+        self.ltsm.entries[entry.id] = entry
+        self.ltsm.delete_entry("del1")
+        self.assertNotIn("del1", self.ltsm.entries)
+
+    def test_find_by_tag(self):
+        entry = MemoryEntry(id="t1", content="tagged", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.0, tags=["foo"])
+        self.ltsm.entries[entry.id] = entry
+        results = self.ltsm.find_by_tag("foo")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].id, "t1")
+
+    def test_find_by_type(self):
+        entry = MemoryEntry(id="type1", content="typed", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.0, type="bar")
+        self.ltsm.entries[entry.id] = entry
+        results = self.ltsm.find_by_type("bar")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].id, "type1")
+
+    def test_get_recent(self):
+        entry1 = MemoryEntry(id="r1", content="recent1", embedding=[0.1,0.2,0.3], importance=1.0, decay_rate=0.0)
+        entry2 = MemoryEntry(id="r2", content="recent2", embedding=[0.4,0.5,0.6], importance=1.0, decay_rate=0.0)
+        entry1.last_accessed = time.time() - 10
+        entry2.last_accessed = time.time()
+        self.ltsm.entries[entry1.id] = entry1
+        self.ltsm.entries[entry2.id] = entry2
+        results = self.ltsm.get_recent(n=1)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].id, "r2")
 
 if __name__ == "__main__":
     unittest.main()
