@@ -1,6 +1,6 @@
-import { createBrowserRouter } from "react-router";
+import { createBrowserRouter } from "react-router-dom";
 import Root from "./components/Root.tsx";
-import MemoryDashboard from "./components/screens/MemoryDashboard";
+import MemoryDashboard from "./components/screens/MemoryDashboard.tsx";
 // import MemorySearch from "./components/screens/MemorySearch";
 // import MemoryTimeline from "./components/screens/MemoryTimeline";
 // import MemoryDetail from "./components/screens/MemoryDetail";
