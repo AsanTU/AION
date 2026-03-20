@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 from math import isclose, exp
-from memory.utils.importance import compute_importance, effective_score, reinforce_importance
+from memory.utils.importance import compute_importance, effective_score, reinforce_importance, _to_timestamp_secs
 import math
 
 class TestImportance(unittest.TestCase):
@@ -26,6 +26,30 @@ class TestImportance(unittest.TestCase):
         base = 0.2
         new = reinforce_importance(base, {"emotion":0.5, "outcome":0.2, "reuse":0.1}, boost=0.01)
         self.assertGreater(new, base)
+
+    def test__to_timestamp_secs(self):
+        # None returns current time (allow some slack)
+        now = _to_timestamp_secs(None)
+        self.assertTrue(abs(now - _to_timestamp_secs(None)) < 2)
+
+        # Float and int
+        self.assertEqual(_to_timestamp_secs(12345.6), 12345.6)
+        self.assertEqual(_to_timestamp_secs(12345), 12345.0)
+
+        # Datetime
+        dt = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        self.assertEqual(_to_timestamp_secs(dt), dt.timestamp())
+
+        # ISO string
+        iso = "2020-01-01T00:00:00+00:00"
+        self.assertEqual(_to_timestamp_secs(iso), dt.timestamp())
+
+        # String float
+        self.assertEqual(_to_timestamp_secs("12345.6"), 12345.6)
+
+        # Bad string returns current time (allow some slack)
+        t = _to_timestamp_secs("not-a-date")
+        self.assertTrue(abs(t - _to_timestamp_secs(None)) < 2)
 
 if __name__ == "__main__":
     unittest.main()
